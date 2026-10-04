@@ -1,7 +1,7 @@
 # Railway build of the SupoClip backend: the FastAPI API and the arq worker run
 # in one container because a Railway volume can only attach to one service, and
 # both processes need the same uploads/clips storage.
-# Build context is the repository root (see railway/backend.json).
+# Build context is the repository root.
 FROM python:3.11-slim
 
 # Install system dependencies including ffmpeg and unzip (for deno).
