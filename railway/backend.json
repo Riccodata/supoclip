@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "railway/backend.Dockerfile",
+    "watchPatterns": ["backend/**", "init.sql", "railway/backend*", "railway/bootstrap_db.py"]
+  },
+  "deploy": {
+    "healthcheckPath": "/health/db",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
