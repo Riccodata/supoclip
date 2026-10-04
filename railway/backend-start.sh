@@ -19,8 +19,9 @@ fi
 .venv/bin/python /app/railway/bootstrap_db.py
 
 .venv/bin/arq src.workers.tasks.WorkerSettings &
-# "::" listens on IPv6 and IPv4; Railway private networking can be IPv6-only.
-.venv/bin/uvicorn src.main:app --host "::" --port "${PORT:-8000}" &
+# Railway's healthchecks and edge connect over IPv4. uvicorn's "::" would be
+# IPv6-only, because asyncio disables dual-stack on IPv6 listening sockets.
+.venv/bin/uvicorn src.main:app --host 0.0.0.0 --port "${PORT:-8000}" &
 
 trap 'kill -TERM $(jobs -p) 2>/dev/null' TERM INT
 
