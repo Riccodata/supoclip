@@ -34,13 +34,13 @@ import srt
 
 from datetime import timedelta
 
-try:
-    import whisper as _whisper
+import importlib.util
 
-    _WHISPER_AVAILABLE = True
-except ImportError:  # pragma: no cover - optional transcription backend
-    _whisper = None
-    _WHISPER_AVAILABLE = False
+# Whisper pulls in PyTorch, which costs hundreds of MB in every process that
+# imports it. It is only imported where a model is actually loaded (see
+# transcription.py), so the API and the idle worker stay small.
+_whisper = None
+_WHISPER_AVAILABLE = importlib.util.find_spec("whisper") is not None
 
 from ..config import get_config
 

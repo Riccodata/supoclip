@@ -38,6 +38,10 @@ RUN uv venv .venv && \
 # Force update yt-dlp to the latest version to handle YouTube API changes
 RUN uv pip install --upgrade --force-reinstall "yt-dlp[default]"
 
+# faster-whisper transcribes several times faster than openai-whisper on CPU at
+# about half the memory; media/transcription.py picks it up automatically.
+RUN uv pip install "faster-whisper>=1.1,<2"
+
 COPY backend/src/ ./src/
 COPY backend/fonts/ ./fonts/
 COPY backend/transitions/ ./transitions/

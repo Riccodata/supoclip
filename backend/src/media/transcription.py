@@ -5,10 +5,14 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor
 import assemblyai as aai
 from ..config import get_config
 import httpx
+import importlib.util
 import json
+import multiprocessing
+import os
 import re
 import time
 from .common import (
@@ -22,7 +26,6 @@ from .common import (
     TRANSCRIPT_CACHE_SCHEMA_VERSION,
     _WHISPER_AVAILABLE,
     _WHISPER_MODEL_CACHE,
-    _whisper,
     logger,
 )
 from .ffmpeg import (
@@ -174,17 +177,96 @@ def _get_whisper_model(model_name: str = "base"):
             "Whisper is not installed. Install it with: uv add openai-whisper"
         )
     if model_name not in _WHISPER_MODEL_CACHE:
+        import whisper
+
         logger.info("Loading Whisper model: %s", model_name)
-        _WHISPER_MODEL_CACHE[model_name] = _whisper.load_model(model_name)
+        _WHISPER_MODEL_CACHE[model_name] = whisper.load_model(model_name)
     return _WHISPER_MODEL_CACHE[model_name]
 
 
+def _resolve_whisper_engine() -> str:
+    """Pick the Whisper implementation: WHISPER_ENGINE=auto|faster-whisper|openai-whisper.
+
+    ``auto`` prefers faster-whisper (CTranslate2, int8) when it is installed: on
+    CPU it is several times faster than openai-whisper and needs about half the
+    memory, with the same models and word-level timestamps.
+    """
+    engine = os.getenv("WHISPER_ENGINE", "auto").strip().lower()
+    if engine in {"faster-whisper", "openai-whisper"}:
+        return engine
+    if importlib.util.find_spec("faster_whisper") is not None:
+        return "faster-whisper"
+    return "openai-whisper"
+
+
+def _cpu_thread_count() -> int:
+    """CPU threads for transcription, honouring the container's CPU quota.
+
+    os.cpu_count() reports the host's cores, which on shared hosts is far more
+    than the container may use; oversubscribing the quota slows inference down.
+    """
+    override = os.getenv("WHISPER_THREADS")
+    if override and override.isdigit() and int(override) > 0:
+        return int(override)
+    try:
+        quota, period = Path("/sys/fs/cgroup/cpu.max").read_text().split()
+        if quota != "max":
+            return max(1, int(int(quota) / int(period)))
+    except (OSError, ValueError):
+        pass
+    return os.cpu_count() or 1
+
+
+def _run_whisper(audio_path: str, model_name: str, engine: str, threads: int) -> Dict[str, Any]:
+    """Transcribe in the current process. Runs inside the transcription subprocess."""
+    if engine == "faster-whisper":
+        from faster_whisper import WhisperModel
+
+        model = WhisperModel(model_name, device="cpu", compute_type="int8", cpu_threads=threads)
+        segments, _info = model.transcribe(audio_path, word_timestamps=True)
+        # Same shape as openai-whisper's result, which the rest of the pipeline expects.
+        result_segments = [
+            {
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text,
+                "words": [
+                    {"word": w.word, "start": w.start, "end": w.end, "probability": w.probability}
+                    for w in segment.words or []
+                ],
+            }
+            for segment in segments
+        ]
+        return {"text": "".join(s["text"] for s in result_segments), "segments": result_segments}
+
+    import torch
+    import whisper
+
+    torch.set_num_threads(threads)
+    model = whisper.load_model(model_name)
+    return model.transcribe(audio_path, word_timestamps=True, language=None)
+
+
 def transcribe_with_whisper(video_path: Path, model_name: str = "base") -> Dict[str, Any]:
-    """Transcribe video using local Whisper with word-level timestamps."""
+    """Transcribe video using local Whisper with word-level timestamps.
+
+    The model runs in a throwaway subprocess: when it exits, the model's memory
+    (several GB for openai-whisper) goes back to the OS instead of staying
+    resident in the long-lived worker between jobs.
+    """
     audio_path = _prepare_audio_for_transcription(video_path)
-    model = _get_whisper_model(model_name)
-    logger.info("Starting Whisper transcription with model: %s", model_name)
-    return model.transcribe(str(audio_path), word_timestamps=True, language=None)
+    engine = _resolve_whisper_engine()
+    threads = _cpu_thread_count()
+    logger.info(
+        "Starting Whisper transcription with model: %s (%s, %d threads)",
+        model_name,
+        engine,
+        threads,
+    )
+    with ProcessPoolExecutor(
+        max_workers=1, mp_context=multiprocessing.get_context("spawn")
+    ) as pool:
+        return pool.submit(_run_whisper, str(audio_path), model_name, engine, threads).result()
 
 
 def _whisper_result_to_transcript_data(whisper_result: Dict[str, Any]) -> Dict[str, Any]:
