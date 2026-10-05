@@ -433,19 +433,26 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
 def _build_transcript_model(runtime_config: Config) -> Model | str:
     """Build the configured model, wrapped with LLM_FALLBACK when that is set.
 
-    The fallback (e.g. google-gla:gemini-flash-lite-latest) answers when the
-    primary model returns an error such as a 503 overload, which free tiers hit
-    often. OpenRouter keeps its own server-side fallback instead.
+    LLM_FALLBACK is a comma-separated list of provider:model names tried in
+    order when the previous model returns an error such as a 503 overload,
+    which free tiers hit often. Prefer full models: lite models tend to return
+    timestamps that fail transcript grounding. OpenRouter keeps its own
+    server-side fallback instead.
     """
     model = _build_primary_transcript_model(runtime_config)
-    fallback = (os.getenv("LLM_FALLBACK") or "").strip()
     provider, _ = _split_llm_name(runtime_config.llm)
-    if not fallback or fallback == runtime_config.llm or provider == "openrouter":
+    fallbacks = [
+        name.strip()
+        for name in (os.getenv("LLM_FALLBACK") or "").split(",")
+        if name.strip() and name.strip() != runtime_config.llm
+    ]
+    if not fallbacks or provider == "openrouter":
         return model
-    config_error = _get_missing_llm_key_error(fallback, runtime_config)
-    if config_error:
-        raise RuntimeError(f"LLM_FALLBACK: {config_error}")
-    return FallbackModel(model, fallback)
+    for fallback in fallbacks:
+        config_error = _get_missing_llm_key_error(fallback, runtime_config)
+        if config_error:
+            raise RuntimeError(f"LLM_FALLBACK {fallback}: {config_error}")
+    return FallbackModel(model, *fallbacks)
 
 
 def _build_primary_transcript_model(runtime_config: Config) -> Model | str:
