@@ -49,7 +49,7 @@ COPY backend/transitions/ ./transitions/
 
 # Railway's managed Postgres can't run init.sql on first boot the way the
 # docker-compose Postgres does, so the start script applies it instead.
-COPY init.sql railway/bootstrap_db.py railway/backend-start.sh ./railway/
+COPY init.sql railway/bootstrap_db.py railway/backend-start.sh railway/cleanup_storage.py ./railway/
 
 RUN mkdir -p /app/logs
 

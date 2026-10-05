@@ -45,6 +45,16 @@ run_worker_on_demand() {
   done
 }
 
+# Old uploads and orphaned clip files would otherwise fill the volume.
+run_storage_cleanup() {
+  sleep 300
+  while true; do
+    .venv/bin/python /app/railway/cleanup_storage.py || true
+    sleep 3600
+  done
+}
+run_storage_cleanup &
+
 if [ "${WORKER_MODE:-on-demand}" = "always" ]; then
   .venv/bin/arq src.workers.tasks.WorkerSettings &
 else
