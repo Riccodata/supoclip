@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     unzip \
     fonts-noto-color-emoji \
     fontconfig \
+    redis-tools \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
