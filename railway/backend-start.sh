@@ -39,6 +39,8 @@ run_worker_on_demand() {
     queued=$(rcli ZCARD supoclip_tasks 2>/dev/null || true)
     if [[ "$queued" =~ ^[0-9]+$ ]] && [ "$queued" -gt 0 ]; then
       .venv/bin/arq --burst src.workers.tasks.WorkerSettings || sleep 5
+      # Railway bills the page cache as memory; drop what the burst left behind.
+      .venv/bin/python /app/railway/drop_file_cache.py || true
     else
       sleep 3
     fi
