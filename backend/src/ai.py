@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Literal
 import asyncio
 import logging
+import os
 import random
 import re
 
@@ -13,6 +14,7 @@ import httpx
 from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
+from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.profiles.openai import OpenAIModelProfile
@@ -30,7 +32,7 @@ IDEAL_CLIP_MAX_SECONDS = 50
 MIN_ACCEPTED_CLIP_SECONDS = 15
 MAX_ACCEPTED_CLIP_SECONDS = 60
 TRANSCRIPT_ANALYSIS_CACHE_VERSION = "hook-titles-v5-grounded"
-TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS = 3
+TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS = max(1, int(os.getenv("TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS", "3")))
 TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS = 600
 TRANSIENT_MODEL_STATUS_CODES = {408, 429, 500, 502, 503, 504, 529}
 HOOK_TITLE_MAX_CHARS = 64
@@ -429,6 +431,24 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
 
 
 def _build_transcript_model(runtime_config: Config) -> Model | str:
+    """Build the configured model, wrapped with LLM_FALLBACK when that is set.
+
+    The fallback (e.g. google-gla:gemini-flash-lite-latest) answers when the
+    primary model returns an error such as a 503 overload, which free tiers hit
+    often. OpenRouter keeps its own server-side fallback instead.
+    """
+    model = _build_primary_transcript_model(runtime_config)
+    fallback = (os.getenv("LLM_FALLBACK") or "").strip()
+    provider, _ = _split_llm_name(runtime_config.llm)
+    if not fallback or fallback == runtime_config.llm or provider == "openrouter":
+        return model
+    config_error = _get_missing_llm_key_error(fallback, runtime_config)
+    if config_error:
+        raise RuntimeError(f"LLM_FALLBACK: {config_error}")
+    return FallbackModel(model, fallback)
+
+
+def _build_primary_transcript_model(runtime_config: Config) -> Model | str:
     provider, provider_model_name = _split_llm_name(runtime_config.llm)
     if provider == "openrouter":
         fallback = runtime_config.openrouter_fallback_model
@@ -482,6 +502,7 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        os.getenv("LLM_FALLBACK"),
     )
     if _transcript_agent is None or _transcript_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())
@@ -751,6 +772,9 @@ def _is_transient_model_error(error: Exception) -> bool:
         seen.add(id(current))
         if isinstance(current, ModelHTTPError):
             return current.status_code in TRANSIENT_MODEL_STATUS_CODES
+        # FallbackModel raises a group once every model has failed.
+        if isinstance(current, BaseExceptionGroup):
+            return any(_is_transient_model_error(e) for e in current.exceptions)
         if isinstance(
             current,
             (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError, TimeoutError),
