@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
 import { HomeRouter } from "@/components/home-router";
-import { APP_STORE_URL, getSiteUrl } from "@/lib/site";
+import { APP_STORE_URL, SITE_NAME, getSiteUrl } from "@/lib/site";
 
 const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   title: {
-    absolute: "SupoClip – Open-Source AI Video Clipper for Shorts",
+    absolute: `${SITE_NAME} – Open-Source AI Video Clipper for Shorts`,
   },
   description:
     "Turn long videos into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping, virality scoring, and face-aware 9:16 crops.",
@@ -22,16 +22,16 @@ export const metadata: Metadata = {
     "AI clip maker",
   ],
   openGraph: {
-    title: "SupoClip – Open-Source AI Video Clipper for Shorts",
+    title: `${SITE_NAME} – Open-Source AI Video Clipper for Shorts`,
     description:
       "Turn long videos into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping.",
     url: siteUrl,
-    siteName: "SupoClip",
+    siteName: SITE_NAME,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SupoClip – Open-Source AI Video Clipper for Shorts",
+    title: `${SITE_NAME} – Open-Source AI Video Clipper for Shorts`,
     description:
       "Open-source AI clipping, virality scoring, captions, and face-aware vertical crops.",
   },

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ClipCutAnimation } from "@/components/auth/clip-cut-animation";
+import { GITHUB_URL, SITE_NAME } from "@/lib/site";
 
 /** Split-screen frame for sign-in and sign-up: form on the left, product showcase on the right. */
 export function AuthFrame({ children, footer }: { children: React.ReactNode; footer: React.ReactNode }) {
@@ -8,12 +9,21 @@ export function AuthFrame({ children, footer }: { children: React.ReactNode; foo
     <div className="grid min-h-dvh bg-background lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <div className="flex flex-col px-6 py-8 sm:px-12">
         <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold tracking-tight">
-          <Image src="/logo.png" alt="" width={24} height={24} className="size-6" priority />SupoClip
+          <Image src="/logo.png" alt="" width={24} height={24} className="size-6" priority />{SITE_NAME}
         </Link>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
           {children}
           <p className="mt-8 text-sm text-muted-foreground">{footer}</p>
         </div>
+        {SITE_NAME !== "SupoClip" && (
+          <p className="text-xs text-muted-foreground">
+            Powered by{" "}
+            <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">
+              SupoClip
+            </a>
+            , open source under AGPL-3.0.
+          </p>
+        )}
       </div>
       <div className="relative hidden overflow-hidden bg-stone-950 lg:block">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgb(255_255_255/0.07),transparent_60%)]" />

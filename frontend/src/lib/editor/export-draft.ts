@@ -1,4 +1,5 @@
 import { downloadBlob } from "@/lib/clip-actions";
+import { SITE_NAME } from "@/lib/site";
 import {
   editDuration,
   outputSize,
@@ -168,7 +169,7 @@ export async function exportDraft(
     signal.throwIfAborted();
     downloadBlob(
       new Blob([output.target.buffer], { type: "video/mp4" }),
-      `supoclip-${preset}.mp4`,
+      `${SITE_NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${preset}.mp4`,
     );
     progress(100);
   } finally {

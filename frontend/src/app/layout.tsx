@@ -6,7 +6,8 @@ import { DataFastIdentity } from "@/components/datafast-identity";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
-import { APP_STORE_ID, getSiteUrl } from "@/lib/site";
+import { isPrivateModeEnabled } from "@/lib/app-flags";
+import { APP_STORE_ID, SITE_NAME, getSiteUrl } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,42 +32,41 @@ const isDataFastEnabled = Boolean(dataFastWebsiteId && dataFastDomain);
 
 export const metadata: Metadata = {
   title: {
-    default: "SupoClip – Open-Source AI Video Clipper",
-    template: "%s | SupoClip",
+    default: `${SITE_NAME} – Open-Source AI Video Clipper`,
+    template: `%s | ${SITE_NAME}`,
   },
   description:
     "Turn long videos into captioned short-form clips with open-source AI clipping, virality scoring, and face-aware vertical crops.",
   metadataBase: new URL(getSiteUrl()),
-  applicationName: "SupoClip",
-  authors: [{ name: "SupoClip Team", url: getSiteUrl() }],
-  creator: "SupoClip Team",
-  publisher: "SupoClip",
+  applicationName: SITE_NAME,
+  authors: [{ name: `${SITE_NAME} Team`, url: getSiteUrl() }],
+  creator: `${SITE_NAME} Team`,
+  publisher: SITE_NAME,
   category: "video software",
   icons: {
     icon: "/icon.png",
   },
-  itunes: {
-    appId: APP_STORE_ID,
-  },
+  // The iOS Smart App Banner points at the official SupoClip app.
+  ...(isPrivateModeEnabled ? {} : { itunes: { appId: APP_STORE_ID } }),
   openGraph: {
-    title: "SupoClip – Open-Source AI Video Clipper",
+    title: `${SITE_NAME} – Open-Source AI Video Clipper`,
     description:
       "Turn long videos into captioned short-form clips with open-source AI clipping.",
-    siteName: "SupoClip",
+    siteName: SITE_NAME,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SupoClip – Open-Source AI Video Clipper",
+    title: `${SITE_NAME} – Open-Source AI Video Clipper`,
     description:
       "Open-source AI clipping, virality scoring, captions, and face-aware vertical crops.",
   },
   robots: {
-    index: true,
-    follow: true,
+    index: !isPrivateModeEnabled,
+    follow: !isPrivateModeEnabled,
     googleBot: {
-      index: true,
-      follow: true,
+      index: !isPrivateModeEnabled,
+      follow: !isPrivateModeEnabled,
       "max-image-preview": "large",
       "max-snippet": -1,
       "max-video-preview": -1,
